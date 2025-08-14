@@ -3,35 +3,538 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive Light and Shadow</title>
-    <link rel="stylesheet" href="style.css">
+    <title>3D Light and Shadow Explorer</title>
+    <style>
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #1a1a1a; color: #fff; overflow: hidden; }
+        #info { position: absolute; top: 10px; width: 100%; text-align: center; z-index: 100; display:block; }
+        #ui-container { position: absolute; top: 20px; left: 20px; z-index: 100; background: rgba(0,0,0,0.5); padding: 15px; border-radius: 10px; max-width: 250px; }
+        .mode-buttons { margin-bottom: 15px; }
+        .mode-buttons button { padding: 10px 15px; margin-right: 10px; border-radius: 5px; border: 1px solid #444; background-color: #333; color: #fff; cursor: pointer; transition: background-color 0.3s; }
+        .mode-buttons button.active { background-color: #007bff; border-color: #007bff; }
+        .controls { display: none; }
+        .controls.active { display: block; }
+        .control-group { margin-bottom: 15px; }
+        .control-group label { display: block; margin-bottom: 5px; font-size: 0.9em; }
+        .control-group input[type="range"] { width: 100%; }
+        .color-swatches { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+        .color-swatch { width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid #555; }
+        .color-swatch.active { border-color: #fff; }
+        #object-selector { margin-top: 15px; }
+        #object-selector label { display: block; margin-bottom: 5px; }
+        #object-selector select { padding: 5px; border-radius: 5px; background: #333; color: #fff; border: 1px solid #555; width: 100%; }
+        canvas { display: block; }
+    </style>
 </head>
 <body>
-    <div id="object-selector">
-        <button data-object="cube">Cube</button>
-        <button data-object="sphere">Sphere</button>
-        <button data-object="cone">Cone</button>
-        <button data-object="torus">Torus</button>
-    </div>
-
-    <div id="light-controls">
-        <div class="control-row">
-            <label for="intensity-slider">Light Intensity</label>
-            <input type="range" id="intensity-slider" min="0" max="2" step="0.1" value="1">
+    <div id="ui-container">
+        <div class="mode-buttons">
+            <button id="playground-btn" class="active">Playground</button>
+            <button id="studio-btn">Studio</button>
         </div>
-        <div class="control-row">
-            <label>Light Color</label>
-            <div id="color-selector">
-                <button class="color-swatch" data-color="0xffd700" style="background-color: #ffd700;"></button>
-                <button class="color-swatch" data-color="0xffffff" style="background-color: #ffffff;"></button>
-                <button class="color-swatch" data-color="0xff0000" style="background-color: #ff0000;"></button>
-                <button class="color-swatch" data-color="0x00ff00" style="background-color: #00ff00;"></button>
-                <button class="color-swatch" data-color="0x0000ff" style="background-color: #0000ff;"></button>
+
+        <!-- Playground Mode Controls -->
+        <div id="playground-controls" class="controls active">
+            <div class="control-group">
+                <label for="pg-intensity">Light Intensity</label>
+                <input type="range" id="pg-intensity" min="0" max="3" value="1.5" step="0.1">
+            </div>
+            <div class="control-group">
+                <label>Light Color</label>
+                <div id="pg-color-swatches" class="color-swatches"></div>
+            </div>
+             <div id="object-selector-pg" class="control-group">
+                <label for="pg-object-select">Object</label>
+                <select id="pg-object-select">
+                    <option value="cube">Cube</option>
+                    <option value="sphere" selected>Sphere</option>
+                    <option value="cone">Cone</option>
+                    <option value="torus">Torus</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Studio Mode Controls -->
+        <div id="studio-controls" class="controls">
+             <div class="control-group">
+                <label>Selected Light: <span id="selected-light-name">Key</span></label>
+            </div>
+            <div class="control-group">
+                <label for="studio-x">Light Horizontal (X)</label>
+                <input type="range" id="studio-x" min="-15" max="15" value="-5" step="0.1">
+            </div>
+             <div class="control-group">
+                <label for="studio-z">Light Depth (Z)</label>
+                <input type="range" id="studio-z" min="-15" max="15" value="5" step="0.1">
+            </div>
+            <div class="control-group">
+                <label for="studio-y">Light Height (Y)</label>
+                <input type="range" id="studio-y" min="0" max="20" value="5" step="0.1">
+            </div>
+            <div class="control-group">
+                <label for="studio-intensity">Light Intensity</label>
+                <input type="range" id="studio-intensity" min="0" max="3" value="1" step="0.1">
+            </div>
+            <div class="control-group">
+                <label>Light Color</label>
+                <div id="studio-color-swatches" class="color-swatches"></div>
+            </div>
+            <div id="object-selector-studio" class="control-group">
+                <label for="studio-object-select">Object</label>
+                <select id="studio-object-select">
+                    <option value="face" selected>Human Face</option>
+                    <option value="cube">Cube</option>
+                    <option value="sphere">Sphere</option>
+                    <option value="cone">Cone</option>
+                    <option value="torus">Torus</option>
+                </select>
             </div>
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="main.js"></script>
+    <!-- Three.js CDN scripts -->
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js",
+            "three/examples/jsm/loaders/GLTFLoader.js": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/loaders/GLTFLoader.js",
+            "three/examples/jsm/controls/OrbitControls.js": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/controls/OrbitControls.js"
+        }
+    }
+    </script>
+    
+    <script type="module">
+        // All JavaScript is now in this single module script
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+        import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+
+        // --- Start of lights.js content ---
+        function createPlaygroundLights(scene) {
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+            scene.add(ambientLight);
+
+            const spotLight = new THREE.SpotLight(0xffffff, 1.5);
+            spotLight.position.set(0, 15, 10);
+            spotLight.angle = Math.PI / 6;
+            spotLight.penumbra = 0.2;
+            spotLight.decay = 2;
+            spotLight.distance = 50;
+            spotLight.castShadow = true;
+            spotLight.shadow.mapSize.width = 1024;
+            spotLight.shadow.mapSize.height = 1024;
+            spotLight.shadow.camera.near = 1;
+            spotLight.shadow.camera.far = 40;
+            spotLight.shadow.focus = 1;
+            
+            // Add gizmo for playground light
+            const gizmoGeometry = new THREE.SphereGeometry(0.25, 16, 8);
+            const gizmoMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true });
+            const gizmo = new THREE.Mesh(gizmoGeometry, gizmoMaterial);
+            spotLight.add(gizmo);
+
+            scene.add(spotLight);
+            return spotLight;
+        }
+
+        function updateLightPositionFromMouse(event, light, camera) {
+            const vec = new THREE.Vector3();
+            const pos = new THREE.Vector3();
+            vec.set(
+                (event.clientX / window.innerWidth) * 2 - 1,
+                - (event.clientY / window.innerHeight) * 2 + 1,
+                0.5
+            );
+            vec.unproject(camera);
+            vec.sub(camera.position).normalize();
+            const distance = (light.position.y - camera.position.y) / vec.y;
+            pos.copy(camera.position).add(vec.multiplyScalar(distance));
+            light.position.x = pos.x;
+            light.position.z = pos.z;
+        }
+
+        function createStudioLight(name, color, intensity, position) {
+            const light = new THREE.SpotLight(color, intensity);
+            light.name = name;
+            light.position.set(position.x, position.y, position.z);
+            light.angle = Math.PI / 5;
+            light.penumbra = 0.5;
+            light.decay = 2;
+            light.distance = 50;
+            light.castShadow = true;
+            light.shadow.mapSize.width = 1024;
+            light.shadow.mapSize.height = 1024;
+            light.shadow.camera.near = 1;
+            light.shadow.camera.far = 40;
+            const gizmoGeometry = new THREE.SphereGeometry(0.2, 16, 8);
+            const gizmoMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true });
+            const gizmo = new THREE.Mesh(gizmoGeometry, gizmoMaterial);
+            light.add(gizmo);
+            light.gizmo = gizmo;
+            return light;
+        }
+
+        function createStudioLights(group) {
+            const lights = [];
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.2);
+            group.add(ambientLight);
+            const keyLight = createStudioLight('Key', 0xffffff, 1.0, new THREE.Vector3(-5, 5, 5));
+            group.add(keyLight);
+            lights.push(keyLight);
+            const fillLight = createStudioLight('Fill', 0xaaaaff, 0.5, new THREE.Vector3(5, 3, 4));
+            fillLight.castShadow = false;
+            group.add(fillLight);
+            lights.push(fillLight);
+            const backLight = createStudioLight('Back', 0xffaa00, 0.8, new THREE.Vector3(0, 4, -6));
+            group.add(backLight);
+            lights.push(backLight);
+            return lights;
+        }
+        // --- End of lights.js content ---
+
+
+        // --- Start of objects.js content ---
+        const loader = new GLTFLoader();
+        let faceModel = null;
+
+        function loadFaceModel(callback) {
+            if (faceModel) {
+                callback(faceModel.clone());
+                return;
+            }
+            const modelUrl = 'https://raw.githack.com/mrdoob/three.js/dev/examples/models/gltf/LeePerrySmith/LeePerrySmith.glb';
+            loader.load(modelUrl, (gltf) => {
+                faceModel = gltf.scene;
+                faceModel.traverse(node => {
+                    if (node.isMesh) {
+                        const material = new THREE.MeshStandardMaterial({
+                            color: 0xcccccc,
+                            roughness: 0.6,
+                            metalness: 0.2
+                        });
+                        node.material = material;
+                        node.castShadow = true;
+                        node.receiveShadow = true;
+                    }
+                });
+                faceModel.scale.set(1.5, 1.5, 1.5);
+                faceModel.position.y = 1.6;
+                faceModel.rotation.y = 0;
+                callback(faceModel.clone());
+            }, undefined, (error) => {
+                console.error('An error happened while loading the model:', error);
+                const fallback = createObject('sphere');
+                callback(fallback);
+            });
+        }
+
+        function clearGroup(group) {
+            const toRemove = [];
+            group.children.forEach(child => {
+                if(child.type !== 'SpotLight' && child.type !== 'AmbientLight') {
+                    toRemove.push(child);
+                }
+            });
+            toRemove.forEach(child => {
+                 if (child.geometry) child.geometry.dispose();
+                if (child.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(m => m.dispose());
+                    } else {
+                        child.material.dispose();
+                    }
+                }
+                group.remove(child);
+            });
+        }
+
+        function createObject(type) {
+            let geometry, mesh;
+            const material = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.5, metalness: 0.1 });
+            switch (type) {
+                case 'cube': geometry = new THREE.BoxGeometry(2, 2, 2); break;
+                case 'sphere': geometry = new THREE.SphereGeometry(1.2, 32, 32); break;
+                case 'cone': geometry = new THREE.ConeGeometry(1.2, 2.5, 32); break;
+                case 'torus': geometry = new THREE.TorusGeometry(1, 0.4, 16, 100); break;
+            }
+            mesh = new THREE.Mesh(geometry, material);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            mesh.position.y = 1.5;
+            if (type === 'cone') mesh.position.y = 1.25;
+            return mesh;
+        }
+
+        function createPlaygroundObjects(group, objectType = 'sphere') {
+            clearGroup(group);
+            if (group.getObjectByName('playground_plane') === undefined) {
+                const planeGeometry = new THREE.PlaneGeometry(100, 100);
+                const planeMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.8 });
+                const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+                plane.rotation.x = -Math.PI / 2;
+                plane.receiveShadow = true;
+                plane.name = 'playground_plane';
+                group.add(plane);
+            }
+            const object = createObject(objectType);
+            group.add(object);
+        }
+
+        function createStudioObjects(group, objectType = 'face') {
+            clearGroup(group);
+            if (group.getObjectByName('studio_floor') === undefined) {
+                const floorGeometry = new THREE.PlaneGeometry(50, 50);
+                const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.9 });
+                const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+                floor.rotation.x = -Math.PI / 2;
+                floor.receiveShadow = true;
+                floor.name = 'studio_floor';
+                group.add(floor);
+
+                const wallGeometry = new THREE.PlaneGeometry(50, 20);
+                const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x282828, roughness: 0.9 });
+                const backWall = new THREE.Mesh(wallGeometry, wallMaterial);
+                backWall.position.z = -10;
+                backWall.position.y = 10;
+                backWall.receiveShadow = true;
+                backWall.name = 'studio_wall';
+                group.add(backWall);
+            }
+            if (objectType === 'face') {
+                loadFaceModel((model) => { group.add(model); });
+            } else {
+                const object = createObject(objectType);
+                group.add(object);
+            }
+        }
+        // --- End of objects.js content ---
+
+
+        // --- Start of main.js content ---
+        let scene, camera, renderer, controls;
+        let currentMode = 'playground';
+        let playgroundGroup, studioGroup;
+        let pgLight, studioLights;
+        let raycaster, mouse;
+        let draggableObjects = [];
+        let selectedLight = null;
+
+        const playgroundBtn = document.getElementById('playground-btn');
+        const studioBtn = document.getElementById('studio-btn');
+        const playgroundControls = document.getElementById('playground-controls');
+        const studioControls = document.getElementById('studio-controls');
+        const pgIntensitySlider = document.getElementById('pg-intensity');
+        const studioXSlider = document.getElementById('studio-x');
+        const studioYSlider = document.getElementById('studio-y');
+        const studioZSlider = document.getElementById('studio-z');
+        const studioIntensitySlider = document.getElementById('studio-intensity');
+        const selectedLightName = document.getElementById('selected-light-name');
+        const pgObjectSelector = document.getElementById('pg-object-select');
+        const studioObjectSelector = document.getElementById('studio-object-select');
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x101010);
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 5, 15);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.body.appendChild(renderer.domElement);
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.screenSpacePanning = false;
+            controls.minDistance = 5;
+            controls.maxDistance = 50;
+            controls.maxPolarAngle = Math.PI / 2;
+            controls.enabled = false;
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+            setupModes();
+            switchMode(currentMode);
+            window.addEventListener('resize', onWindowResize, false);
+            playgroundBtn.addEventListener('click', () => switchMode('playground'));
+            studioBtn.addEventListener('click', () => switchMode('studio'));
+            document.addEventListener('pointerdown', onPointerDown);
+            document.addEventListener('pointermove', onPointerMove);
+            document.addEventListener('pointerup', onPointerUp);
+            window.addEventListener('wheel', onMouseWheel, { passive: false });
+            pgIntensitySlider.addEventListener('input', (e) => { if (pgLight) pgLight.intensity = parseFloat(e.target.value); });
+            
+            studioXSlider.addEventListener('input', (e) => { if (selectedLight) selectedLight.position.x = parseFloat(e.target.value); });
+            studioYSlider.addEventListener('input', (e) => { if (selectedLight) selectedLight.position.y = parseFloat(e.target.value); });
+            studioZSlider.addEventListener('input', (e) => { if (selectedLight) selectedLight.position.z = parseFloat(e.target.value); });
+
+            studioIntensitySlider.addEventListener('input', (e) => { if (selectedLight) selectedLight.intensity = parseFloat(e.target.value); });
+            pgObjectSelector.addEventListener('change', (e) => { if (playgroundGroup) createPlaygroundObjects(playgroundGroup, e.target.value); });
+            studioObjectSelector.addEventListener('change', (e) => { if (studioGroup) createStudioObjects(studioGroup, e.target.value); });
+            setupColorSwatches('pg-color-swatches', (color) => { if(pgLight) pgLight.color.set(color); });
+            setupColorSwatches('studio-color-swatches', (color) => { if(selectedLight) selectedLight.color.set(color); });
+            animate();
+        }
+
+        function setupModes() {
+            playgroundGroup = new THREE.Group();
+            pgLight = createPlaygroundLights(playgroundGroup);
+            createPlaygroundObjects(playgroundGroup, 'sphere');
+            scene.add(playgroundGroup);
+            studioGroup = new THREE.Group();
+            studioLights = createStudioLights(studioGroup);
+            createStudioObjects(studioGroup, 'face');
+            draggableObjects.push(...studioLights.map(l => l.gizmo));
+            scene.add(studioGroup);
+        }
+
+        function switchMode(mode) {
+            currentMode = mode;
+            if (mode === 'playground') {
+                playgroundGroup.visible = true;
+                studioGroup.visible = false;
+                playgroundBtn.classList.add('active');
+                studioBtn.classList.remove('active');
+                playgroundControls.classList.add('active');
+                studioControls.classList.remove('active');
+                controls.enabled = false;
+                camera.position.set(0, 5, 15);
+                controls.target.set(0,0,0);
+            } else {
+                playgroundGroup.visible = false;
+                studioGroup.visible = true;
+                playgroundBtn.classList.remove('active');
+                studioBtn.classList.add('active');
+                playgroundControls.classList.remove('active');
+                studioControls.classList.add('active');
+                controls.enabled = true;
+                selectLight(studioLights[0]);
+                camera.position.set(0, 2, 10);
+                controls.target.set(0,1,0);
+            }
+            controls.update();
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        let isDragging = false;
+        let dragPlane = new THREE.Plane();
+        let dragOffset = new THREE.Vector3();
+
+        function onPointerDown(event) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            if (currentMode === 'studio') {
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObjects(draggableObjects);
+                if (intersects.length > 0) {
+                    controls.enabled = false;
+                    const intersectedObject = intersects[0].object;
+                    const light = studioLights.find(l => l.gizmo === intersectedObject);
+                    if(light) {
+                        selectLight(light);
+                        isDragging = true;
+                        dragPlane.setFromNormalAndCoplanarPoint(camera.getWorldDirection(dragPlane.normal), intersectedObject.parent.position);
+                        const intersectionPoint = new THREE.Vector3();
+                        raycaster.ray.intersectPlane(dragPlane, intersectionPoint);
+                        dragOffset.copy(intersectionPoint).sub(intersectedObject.parent.position);
+                    }
+                }
+            } else if (currentMode === 'playground') {
+                isDragging = true;
+            }
+        }
+
+        function onPointerMove(event) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            if (currentMode === 'playground' && isDragging) {
+                updateLightPositionFromMouse(event, pgLight, camera);
+            } else if (currentMode === 'studio' && isDragging && selectedLight) {
+                raycaster.setFromCamera(mouse, camera);
+                const intersectionPoint = new THREE.Vector3();
+                if (raycaster.ray.intersectPlane(dragPlane, intersectionPoint)) {
+                    const newPos = intersectionPoint.sub(dragOffset);
+                    selectedLight.position.x = newPos.x;
+                    selectedLight.position.z = newPos.z;
+                    // Keep Y from slider
+                    selectedLight.position.y = parseFloat(studioYSlider.value);
+
+                    // Update sliders to match drag position
+                    studioXSlider.value = selectedLight.position.x;
+                    studioZSlider.value = selectedLight.position.z;
+                }
+            }
+        }
+
+        function onPointerUp() {
+            isDragging = false;
+            if (currentMode === 'studio') {
+                controls.enabled = true;
+            }
+        }
+
+        function onMouseWheel(event) {
+            if (currentMode === 'studio') {
+                event.preventDefault();
+                const zoomSpeed = 0.01;
+                camera.position.z += event.deltaY * zoomSpeed;
+                camera.position.z = Math.max(3, Math.min(20, camera.position.z));
+            }
+        }
+
+        function selectLight(light) {
+            selectedLight = light;
+            studioLights.forEach(l => l.gizmo.material.color.set(l === selectedLight ? 0xffff00 : 0xffffff));
+            selectedLightName.textContent = light.name;
+            
+            // Update all sliders to match selected light's properties
+            studioXSlider.value = light.position.x;
+            studioYSlider.value = light.position.y;
+            studioZSlider.value = light.position.z;
+            studioIntensitySlider.value = light.intensity;
+            
+            const activeSwatch = document.querySelector('#studio-color-swatches .color-swatch.active');
+            if (activeSwatch) activeSwatch.classList.remove('active');
+            const newActiveSwatch = [...document.querySelectorAll('#studio-color-swatches .color-swatch')].find(s => s.dataset.color === `#${light.color.getHexString()}`);
+            if (newActiveSwatch) newActiveSwatch.classList.add('active');
+        }
+
+        function setupColorSwatches(containerId, callback) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = ''; // Clear previous swatches
+            const colors = [0xffffff, 0xffaaaa, 0xaaffaa, 0xaaaaff, 0xffffaa, 0xaaffff, 0xffaaff, 0xff8800];
+            colors.forEach((color, index) => {
+                const swatch = document.createElement('div');
+                swatch.classList.add('color-swatch');
+                const colorHex = `#${new THREE.Color(color).getHexString()}`;
+                swatch.style.backgroundColor = colorHex;
+                swatch.dataset.color = colorHex;
+                if (index === 0) swatch.classList.add('active');
+                swatch.addEventListener('click', () => {
+                    callback(color);
+                    container.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+                    swatch.classList.add('active');
+                });
+                container.appendChild(swatch);
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        init();
+        // --- End of main.js content ---
+    </script>
 </body>
 </html>
